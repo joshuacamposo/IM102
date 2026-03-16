@@ -2,25 +2,24 @@
 session_start();
 require_once 'db_connect.php';
 
-// Database connection (make sure $host, $username, $password, $database exist)
+// Database connection
 $conn = new mysqli($host, $username, $password, $database);
-
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
-
-$conn->set_charset("utf8mb4");
+$conn->set_charset("utf8mb4");  
 
 $error = "";
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $user = trim($_POST['username']);
     $pass = $_POST['password'];
 
-    $sql = "SELECT id, username, password FROM users WHERE username = ?";
+    $sql = "SELECT id, username, password_hash, role FROM users WHERE username = ?";
     $stmt = $conn->prepare($sql);
+
     if (!$stmt) {
-        die("Prepare failed: " . $conn->error); // <- will show exact error
+        die("Prepare failed: " . $conn->error);
     }
 
     $stmt->bind_param("s", $user);
@@ -29,9 +28,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     if ($result->num_rows > 0) {
         $row = $result->fetch_assoc();
-        if (password_verify($pass, $row['password'])) {
+
+        // Verify password
+        if (password_verify($pass, $row['password_hash'])) {
             $_SESSION['user_id'] = $row['id'];
             $_SESSION['username'] = $row['username'];
+
+            // Optional: store role if exists
+            if (isset($row['role'])) {
+                $_SESSION['role'] = $row['role'];
+            }
+
+            // Redirect to dashboard
             header("Location: dashboard.php");
             exit();
         } else {
@@ -45,7 +53,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 
 $conn->close();
-
 ?>
 <!DOCTYPE html>
 <html lang="en">

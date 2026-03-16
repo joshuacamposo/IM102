@@ -1,9 +1,11 @@
 <?php
+session_start();
 require_once 'db_connect.php';
 
 $errors = [];
 $success = "";
 
+// Check if POST
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     // Retrieve data
@@ -25,9 +27,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $errors[] = "Passwords do not match.";
     }
 
-    // Check for existing user (Prepared Statement)
+    // Check for existing user
     if (empty($errors)) {
+
         $stmt = $conn->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
+        if (!$stmt) {
+            die("Prepare failed: " . $conn->error);
+        }
+
         $stmt->bind_param("ss", $username, $email);
         $stmt->execute();
         $stmt->store_result();
@@ -39,19 +46,25 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $stmt->close();
     }
 
-    // Insert user if no errors
+    // Insert new user
     if (empty($errors)) {
 
-        // Hash password
         $password_hash = password_hash($password, PASSWORD_DEFAULT);
 
-        $stmt = $conn->prepare("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)");
-        $stmt->bind_param("sss", $username, $email, $password_hash);
+        // Assign default role 'user'
+        $role = 'user';
+
+        $stmt = $conn->prepare("INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)");
+        if (!$stmt) {
+            die("Prepare failed: " . $conn->error);
+        }
+
+        $stmt->bind_param("ssss", $username, $email, $password_hash, $role);
 
         if ($stmt->execute()) {
-            $success = "Registration successful!";
-            header("Location: login.php"); // Redirect to login page after successful registration
-            exit(); // Stop further code execution
+            // Redirect to login after successful registration
+            header("Location: login.php");
+            exit();
         } else {
             $errors[] = "Something went wrong. Please try again.";
         }
@@ -62,29 +75,44 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>Register</title>
-<link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <title>Register</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
-
 <body>
-
 <div class="container">
 
 <h2>Register</h2>
 
-<form method="post" action="register.php">
-<input type="text" name="username" placeholder="Username" required>
-<input type="email" name="email" placeholder="Email" required>
-<input type="password" name="password" placeholder="Password" required>
-<input type="password" name="confirm_password" placeholder="Confirm Password" required>
-<button type="submit">Register</button>
-<p>Already have an account? <a href="login.php">Login</a></p>
+<!-- Display errors -->
+<?php if (!empty($errors)): ?>
+    <div class="error">
+        <ul>
+            <?php foreach($errors as $err): ?>
+                <li><?php echo htmlspecialchars($err); ?></li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+<?php endif; ?>
 
+<!-- Display success -->
+<?php if (!empty($success)): ?>
+    <div class="success">
+        <?php echo htmlspecialchars($success); ?>
+    </div>
+<?php endif; ?>
+
+<form method="post" action="register.php">
+    <input type="text" name="username" placeholder="Username" value="<?php echo htmlspecialchars($username ?? ''); ?>" required>
+    <input type="email" name="email" placeholder="Email" value="<?php echo htmlspecialchars($email ?? ''); ?>" required>
+    <input type="password" name="password" placeholder="Password" required>
+    <input type="password" name="confirm_password" placeholder="Confirm Password" required>
+    <button type="submit">Register</button>
+    <p>Already have an account? <a href="login.php">Login</a></p>
 </form>
 
 </div>
-
 </body>
 </html>
