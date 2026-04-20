@@ -1,20 +1,21 @@
 <?php
 
-// Database credentials
 $host = "localhost";
+$dbname = "im102_lab_camposo";
 $username = "root";
 $password = "";
-$database = "im102_lab_camposo";
 
-// Create connection
-$conn = new mysqli($host, $username, $password, $database);
+function getDbConnection() {
+    global $host, $dbname, $username, $password;
 
-// Check connection
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+    $conn = new mysqli($host, $username, $password, $dbname);
+
+    if ($conn->connect_error) {
+        die("Database connection failed: " . $conn->connect_error);
+    }
+
+    $conn->set_charset("utf8mb4");
+
+    return $conn;
 }
-
-// Set charset
-$conn->set_charset("utf8mb4");
-
 ?>

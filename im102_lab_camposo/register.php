@@ -1,75 +1,57 @@
 <?php
 session_start();
+
 require_once 'db_connect.php';
+require_once 'validate.php';
 
 $errors = [];
 $success = "";
 
-// Check if POST
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    // Retrieve data
-    $username = trim($_POST['username'] ?? '');
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $confirm_password = $_POST['confirm_password'] ?? '';
+    $errors = validateRegistration($_POST);
 
-    // Validate input
-    if (empty($username) || empty($email) || empty($password) || empty($confirm_password)) {
-        $errors[] = "All fields are required.";
+    if ($_POST['password'] !== $_POST['confirm_password']) {
+        $errors[] = "Passwords do not match!";
     }
 
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $errors[] = "Invalid email format.";
-    }
-
-    if ($password !== $confirm_password) {
-        $errors[] = "Passwords do not match.";
-    }
-
-    // Check for existing user
     if (empty($errors)) {
 
-        $stmt = $conn->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
-        if (!$stmt) {
-            die("Prepare failed: " . $conn->error);
-        }
+        // ✅ FIX: PROPER CONNECTION
+        $conn = getDbConnection();
 
+        $username = trim($_POST['username']);
+        $email = trim($_POST['email']);
+        $password = $_POST['password'];
+
+        // check existing user
+        $stmt = $conn->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
         $stmt->bind_param("ss", $username, $email);
         $stmt->execute();
-        $stmt->store_result();
+        $result = $stmt->get_result();
 
-        if ($stmt->num_rows > 0) {
-            $errors[] = "Username or email already exists.";
-        }
-
-        $stmt->close();
-    }
-
-    // Insert new user
-    if (empty($errors)) {
-
-        $password_hash = password_hash($password, PASSWORD_DEFAULT);
-
-        // Assign default role 'user'
-        $role = 'user';
-
-        $stmt = $conn->prepare("INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)");
-        if (!$stmt) {
-            die("Prepare failed: " . $conn->error);
-        }
-
-        $stmt->bind_param("ssss", $username, $email, $password_hash, $role);
-
-        if ($stmt->execute()) {
-            // Redirect to login after successful registration
-            header("Location: login.php");
-            exit();
+        if ($result->num_rows > 0) {
+            $errors[] = "Username or email already exists!";
         } else {
-            $errors[] = "Something went wrong. Please try again.";
+
+            $password_hash = password_hash($password, PASSWORD_DEFAULT);
+
+            $stmt = $conn->prepare("
+                INSERT INTO users (username, email, password_hash, role)
+                VALUES (?, ?, ?, 'user')
+            ");
+
+            $stmt->bind_param("sss", $username, $email, $password_hash);
+
+            if ($stmt->execute()) {
+                header("Location: login.php?registered=success");
+                exit();
+            } else {
+                $errors[] = "Registration failed!";
+            }
         }
 
-        $stmt->close();
+        $conn->close();
     }
 }
 ?>
@@ -83,6 +65,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 </head>
 <body>
 <div class="container">
+    <style>
+    .error {
+        color: red;
+        margin-bottom: 10px;
+        
+    }
+
+    .success {
+        color: green;
+        margin-bottom: 10px;
+        
+    }
+</style>
 
 <h2>Register</h2>
 
